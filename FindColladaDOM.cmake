@@ -1,0 +1,130 @@
+# - Try to find Collada DOM
+# Once done this will define
+#
+#  COLLADA_DOM_FOUND - system has Collada dom
+#  COLLADA_DOM_INCLUDE_DIR - the Collada DOM include directory
+#  COLLADA_DOM_LIBRARIES - Link these to use Collada DOM
+#
+
+FIND_PATH(COLLADA_DOM_INCLUDE_DIR NAMES dae.h dom.h
+  PATHS
+  ${PROJECT_BINARY_DIR}/include
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/include
+  ENV CPATH
+  /usr/include
+  /usr/local/include
+  /opt/local/include
+  NO_DEFAULT_PATH
+)
+
+FIND_LIBRARY(COLLADA_DOM_LIBXMLPLUGIN 
+  NAMES 
+  collada_LIBXMLPlugin 
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+
+FIND_LIBRARY(COLLADA_DOM_STLDATABASE 
+  NAMES 
+  collada_STLDatabase 
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+FIND_LIBRARY(COLLADA_DOM_STDERRPLUGIN 
+  NAMES 
+  collada_stdErrPlugin 
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+FIND_LIBRARY(COLLADA_DOM_DOM
+  NAMES 
+  collada_dom  
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+FIND_LIBRARY(COLLADA_DOM_DAE 
+  NAMES 
+  collada_dae 
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+
+FIND_LIBRARY(LIBXML2 
+  NAMES 
+  xml2 
+  PATHS
+  ${PROJECT_BINARY_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/lib
+  ${PROJECT_SOURCE_DIR}/libraries/COLLADA_DOM/lib-dbg
+  ENV LD_LIBRARY_PATH
+  ENV LIBRARY_PATH
+  /usr/lib
+  /usr/local/lib
+  /opt/local/lib
+  NO_DEFAULT_PATH
+)
+
+SET (COLLADA_DOM_LIBRARIES
+  ${COLLADA_DOM_DAE}
+  ${COLLADA_DOM_STDERRPLUGIN}
+  ${COLLADA_DOM_LIBXMLPLUGIN}
+  ${COLLADA_DOM_STLDATABASE}
+  ${COLLADA_DOM_DOM}
+  ${COLLADA_DOM_DAE}
+  ${LIBXML2} 
+)
+
+IF(COLLADA_DOM_INCLUDE_DIR AND COLLADA_DOM_LIBRARIES)
+   SET(COLLADA_DOM_INCLUDE_DIR
+       ${COLLADA_DOM_INCLUDE_DIR}
+       ${COLLADA_DOM_INCLUDE_DIR/1.4}
+   )
+   SET(COLLADA_DOM_FOUND TRUE)
+ENDIF(COLLADA_DOM_INCLUDE_DIR AND COLLADA_DOM_LIBRARIES)
+
+# show the COLLADA_DOM_INCLUDE_DIR and COLLADA_DOM_LIBRARIES variables only in the advanced view
+IF(COLLADA_DOM_FOUND)
+  MARK_AS_ADVANCED(COLLADA_DOM_INCLUDE_DIR COLLADA_DOM_LIBRARIES )
+ENDIF(COLLADA_DOM_FOUND)
+
