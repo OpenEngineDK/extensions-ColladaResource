@@ -1,7 +1,13 @@
 INCLUDE(${OE_CURRENT_EXTENSION_DIR}/FindColladaDOM.cmake)
+INCLUDE(${OE_CURRENT_EXTENSION_DIR}/FindXML2.cmake)
 
 IF (COLLADA_DOM_FOUND) 
   INCLUDE_DIRECTORIES(${COLLADA_DOM_INCLUDE_DIR})
 ELSE (COLLADA_DOM_FOUND)
   MESSAGE ("WARNING: Could not find Collada DOM  - depending targets will be disabled.")
 ENDIF (COLLADA_DOM_FOUND)
+
+IF (LIBXML2_FOUND)
+ELSE(LIBXML2_FOUND)
+  MESSAGE ("WARNING: Could not find xml2 - depending targets will be disabled.")
+ENDIF (LIBXML2_FOUND)

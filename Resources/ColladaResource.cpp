@@ -88,10 +88,9 @@ void ColladaResource::Load() {
     if (faces != NULL) return;
 
     float vertex[3], normal[3];
-
-    // create a new face set
     faces = new FaceSet();
 
+    //initialize the collada database
     dae = new DAE();
     //    dae->setIntegrationLibrary(&intRegisterElements);
 
@@ -101,15 +100,15 @@ void ColladaResource::Load() {
         return;
     }
     
-    // Find all the geometry dom nodes
+    // Find all the geometry nodes
     int geomCount = dae->getDatabase()->getElementCount(NULL,COLLADA_ELEMENT_GEOMETRY,NULL);
-    logger.info << "Found " << geomCount << " Geometry Nodes." << logger.end;
+    //logger.info << "Found " << geomCount << " Geometry Nodes." << logger.end;
     
     // Iterate through each domGeometry node (each domGeometry node
     // possibly contain a domMesh child which contains the actual
     // geometric primitives)
     for (int i = 0; i < geomCount; i++) {
-        logger.info << "Processing geometry node " << i << "..." << logger.end;
+        //logger.info << "Processing geometry node " << i << "..." << logger.end;
    
         // Retrieve the domMesh node contained in the current domGeometry node
         domGeometry* geom;
@@ -125,7 +124,7 @@ void ColladaResource::Load() {
         domTriangles_Array triangles_arr = mesh->getTriangles_array();
         int triListCount = triangles_arr.getCount(); // number of triangle lists
 
-        logger.info << "Found " << triListCount << " triangle lists." << logger.end;
+        //logger.info << "Found " << triListCount << " triangle lists." << logger.end;
        
         // for each domTriangles node 
         for (int j = 0; j < triListCount; j++) {
@@ -209,12 +208,12 @@ void ColladaResource::Load() {
             Vector<3,float> vertices[3];
             Vector<3,float> normals[3];
             
-            vertex[0] = 0;
-            vertex[1] = 0;
-            vertex[2] = 0;
-            normal[0] = 0;
-            normal[1] = 0;
-            normal[2] = 0;
+//             vertex[0] = 0;
+//             vertex[1] = 0;
+//             vertex[2] = 0;
+//             normal[0] = 0;
+//             normal[1] = 0;
+//             normal[2] = 0;
             
             while (currentP < pCount) {
                 int p = p_arr[currentP];
@@ -237,32 +236,29 @@ void ColladaResource::Load() {
                     vertices[currentVertex] = Vector<3,float>(vertex[0],vertex[1],vertex[2]);
                     normals[currentVertex] = Vector<3,float>(normal[0],normal[1],normal[2]);
                     currentVertex++;
+
                     if (currentVertex > 2) {
                         currentVertex = 0;
-                        
                         try {
                             FacePtr face = FacePtr(new Face(vertices[0], vertices[1],vertices[2],
                                                             normals[0], normals[1], normals[2]));
                             faces->Add(face);
                         }
-                        catch (Exception e) {
-                            logger.warning << "Previous face caused an exception!" << logger.end;
+                        catch (ArithmeticException e) {
+                            logger.warning << "Face caused an arithmetic exception" << logger.end;
                         } 
-                        
                         currentFace++;
                     }
 
-                    vertex[0] = 0;
-                    vertex[1] = 0;
-                    vertex[2] = 0;
-                    normal[0] = 0;
-                    normal[1] = 0;
-                    normal[2] = 0;
+//                     vertex[0] = 0;
+//                     vertex[1] = 0;
+//                     vertex[2] = 0;
+//                     normal[0] = 0;
+//                     normal[1] = 0;
+//                     normal[2] = 0;
                 }
-
                 currentP++;
             }
-         
             delete[] offsetMap;
         }
     }

@@ -12,6 +12,7 @@
 #define _COLLADA_RESOURCE_H_
 
 #include <Resources/IModelResource.h>
+#include <Resources/ResourcePlugin.h>
 #include <Resources/ITextureResource.h>
 #include <Resources/IShaderResource.h>
 #include <Geometry/FaceSet.h>
@@ -39,12 +40,11 @@ class ColladaResource : public IModelResource {
 private:
     
     struct InputMap{
-        int size; // the number of floats to write
+        int size; // the number of floats to write(assume that all data arrays are of type float)
         int stride; // the p index must be multiplied with this number
         float* dest; // a pointer to a float array where the data has to be written
         domListOfFloats src; // the source element
     };
-
 
     // inner material structure
     class Material {
@@ -78,7 +78,7 @@ public:
  *
  * @class ColladaPlugin ColladaResource.h "ColladaResource.h"
  */
-class ColladaPlugin : public IModelResourcePlugin {
+class ColladaPlugin : public ResourcePlugin<IModelResource> {
 public:
 	ColladaPlugin();
     IModelResourcePtr CreateResource(string file);
