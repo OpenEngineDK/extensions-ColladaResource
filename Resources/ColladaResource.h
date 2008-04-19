@@ -15,7 +15,6 @@
 #include <Resources/ResourcePlugin.h>
 #include <Resources/ITextureResource.h>
 #include <Resources/IShaderResource.h>
-#include <Geometry/FaceSet.h>
 
 #include <string>
 #include <vector>
@@ -26,9 +25,15 @@
 #include <dom/domConstants.h>
 
 namespace OpenEngine {
+    //forward declarations
+    namespace Scene { 
+        class ISceneNode; 
+        class GeometryNode; 
+    }
+
 namespace Resources {
 
-using namespace OpenEngine::Geometry;
+using namespace OpenEngine::Scene;
 using namespace std;
 
 /**
@@ -56,7 +61,9 @@ private:
     };
 
     string file;                      //!< collada file path
-    FaceSet* faces;                   //!< the face set
+    //    FaceSet* faces;                   //!< the face set
+    ISceneNode* node;                 //!< the root node
+
     map<string, Material*> materials; //!< resources material map
 
     // Collada DOM pointers
@@ -64,13 +71,14 @@ private:
 
     // helper methods
     void Error(int line, string msg);
+    GeometryNode* LoadGeometry(domGeometry* geom);
 
 public:
     ColladaResource(string file);
     ~ColladaResource();
     void Load();
     void Unload();
-    FaceSet* GetFaceSet();
+    ISceneNode* GetSceneNode();
 };
 
 /**
