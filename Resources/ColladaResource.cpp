@@ -19,6 +19,11 @@
 #include <Scene/ISceneNode.h>
 #include <Scene/TransformationNode.h>
 #include <Math/Quaternion.h>
+
+
+#include <dom/domProfile_COMMON.h>
+#include <dae/daeSIDResolver.h>
+
 namespace OpenEngine {
 namespace Resources {
 
@@ -49,7 +54,7 @@ IModelResourcePtr ColladaPlugin::CreateResource(string file) {
 /**
  * Resource constructor.
  */
-ColladaResource::ColladaResource(string file) : file(file), node(NULL), dae(NULL) {}
+ColladaResource::ColladaResource(string file) : file(file), root(NULL), dae(NULL) {}
 
 /**
  * Resource destructor.
@@ -59,94 +64,180 @@ ColladaResource::~ColladaResource() {
 }
 
 /**
- * Helper function to print out errors in the OBJ files.
+ * Helper function to load a domTexture into a Material structure.
  */
-void ColladaResource::Error(int line, string msg) {
-    logger.warning << file << " line[" << line << "] " << msg << "." << logger.end;
+void ColladaResource::LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m) {
+    daeElement* elm = daeSIDResolver(tex,tex->getTexture()).getElement();
+    if (elm == NULL) {
+        logger.warning << "Invalid texture reference" << logger.end;
+        return;
+    }
+     
+    // If the texture reference points to an image node
+    if (elm->getElementType() == COLLADA_TYPE::IMAGE) {
+        domImage* img = dynamic_cast<domImage*>(elm);
+        domImage::domInit_from* initFrom =  img->getInit_from();
+        if (initFrom != NULL) {
+            m->texture = ResourceManager<ITextureResource>::Create(string(initFrom->getValue().getFile()));
+        }
+    }
 }
+
+ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) {
+    Material* res = new Material();
+    
+    // get the effect element pointed to by instance_effect
+    domEffect* e = dynamic_cast<domEffect*>(material->getInstance_effect()->getUrl().getElement().cast());
+    domFx_profile_abstract_Array profileArr = e->getFx_profile_abstract_array();
+    
+    for (unsigned int p = 0; p < profileArr.getCount(); p++) {
+        // only process the profile_COMMON technique
+        if (profileArr[p]->getElementType() == COLLADA_TYPE::PROFILE_COMMON) {
+            
+            domProfile_COMMON* profile_common = dynamic_cast<domProfile_COMMON*>(profileArr[p].cast());
+            domProfile_COMMON::domTechnique* technique = profile_common->getTechnique();
+
+            // see if the fixed function shader technique is phong
+            domProfile_COMMON::domTechnique::domPhong* phong = technique->getPhong();
+            if (phong != NULL) {
+                if (phong->getDiffuse().cast() != NULL) {
+                    LoadTexture(phong->getDiffuse()->getTexture(), res);
+                }
+                return res;
+            }
+
+            // see if the fixed function shader technique is lambert
+            domProfile_COMMON::domTechnique::domLambert* lambert = technique->getLambert();
+            if (lambert != NULL) {
+                if (lambert->getDiffuse().cast() != NULL) {
+                    LoadTexture(lambert->getDiffuse()->getTexture(), res);
+                }
+                return res;
+            }
+        }
+    }
+
+    
+    return res;
+}
+
 
 /**
 * Helper function to load the geometry from a given domGeometry node
 */
 GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
 
-    float vertex[3], normal[3];
+    float vertex[3], normal[3], texcoord[2];
     FaceSet* faces = new FaceSet();
     domMesh* mesh = geom->getMesh();
     
     // Retrieve an array of domTriangles nodes contained in the mesh 
-    domTriangles_Array triangles_arr = mesh->getTriangles_array();
-    int triListCount = triangles_arr.getCount(); // number of triangle lists
+    domTriangles_Array trianglesArr = mesh->getTriangles_array();
     
-    //logger.info << "Found " << triListCount << " triangle lists." << logger.end;
-       
-    // for each domTriangles node 
-    for (int triList = 0; triList < triListCount; triList++) {
+    for (unsigned int t = 0; t < trianglesArr.getCount(); t++) {
 
-        domTriangles* triangles = triangles_arr[triList]; 
-        //int triCount = triangles->getCount(); // number of triangles defined
+        domTriangles* triangles = trianglesArr[t]; 
             
+        // Get the material associated with the current triangle list
+        Material* m;
+        daeElement* elm = daeSIDResolver(triangles,triangles->getMaterial()).getElement();
+        if (elm != NULL) {
+            m = LoadMaterial(dynamic_cast<domMaterial*>(elm));
+        }
+        else {
+            // the default material
+            m = new Material();
+        }
+
         // Retrieve the primitive(P) list, which is a list of indices into 
         // source elements. 
-        domListOfUInts p_arr = triangles->getP()->getValue(); 
-        int pCount = p_arr.getCount();
+        domListOfUInts pArr = triangles->getP()->getValue(); 
+        int pCount = pArr.getCount();
 
         // Retrieve an array of input elements. These elements define the type of data that 
         // a certain P-index points to (vertex, normal, etc.). It also indicates which
         // source element the P-index points into. 
-        domInputLocalOffset_Array input_arr = triangles->getInput_array();
-        int inputCount = input_arr.getCount(); // number of attributes per vertex in triangle
+        domInputLocalOffset_Array inputArr = triangles->getInput_array();
+        int inputCount = inputArr.getCount(); // number of attributes per vertex in triangle
             
         // A map indicating where the retrieved vertex data should be copied to
         // depending on the input offset (we assume that the highest possible
-        // offset is the number input elements).
-        vector<InputMap>* offsetMap = new vector<InputMap>[inputCount];
+        // offset is the number of input elements).
+        vector<InputMap*>* offsetMap = new vector<InputMap*>[inputCount];
             
         // fill out the offsetMap and find the max offset number            
         int maxOffset = 0;
         for (int input = 0; input < inputCount; input++) {
-            InputMap im;
-            im.dest = NULL;
-
-            domInputLocalOffset* domInput = input_arr[input];
-                
-            if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_VERTEX) == 0) {
-                im.dest = vertex;
-                im.size = 3;
-            }
-            else if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_NORMAL) == 0) {
-                im.dest = normal;
-                im.size = 3;
-            }
-                
-            daeElement* elm = domInput->getSource().getElement();
-                  
-            if (elm->getElementType() == COLLADA_TYPE::VERTICES) {
-                domVertices* v = (domVertices*)elm;
-                domInputLocal_Array ia = v->getInput_array();
-                for (unsigned int l = 0; l < ia.getCount(); l++) {
-                    if (strcmp(ia[l]->getSemantic(), COMMON_PROFILE_INPUT_POSITION) == 0) {
-                        elm = ia[l]->getSource().getElement();
-                        break;
-                    }
-                }
-            }
-                
-            domSource* src  = (domSource*)elm;
-                
-            im.src = src->getFloat_array()->getValue();
-
-            if (src->getTechnique_common() == NULL) {
-                im.stride = 1;
-                im.size = 0;
-                logger.warning << "Found source without accessor!" << logger.end;
-            } else {
-                im.stride = src->getTechnique_common()->getAccessor()->getStride();
-            }
-                
+            InputMap* im;
+            
+            domInputLocalOffset* domInput = inputArr[input];
             int offset = domInput->getOffset();
             if (offset > maxOffset)
                 maxOffset = offset;
+                
+            // special case if the semantic is INPUT_VERTEX
+            // TODO: eliminate code redundancy!
+            if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_VERTEX) == 0) {
+                domVertices* v = dynamic_cast<domVertices*>(domInput->getSource().getElement().cast());
+                domInputLocal_Array ia = v->getInput_array();
+                
+                for (unsigned int l = 0; l < ia.getCount(); l++) {
+                    im = new InputMap();
+                    im->dest = NULL;
+                    if (strcmp(ia[l]->getSemantic(),COMMON_PROFILE_INPUT_NORMAL) == 0) {
+                        im->dest = normal;
+                        im->size = 3;
+                    }
+
+                    else if (strcmp(ia[l]->getSemantic(), COMMON_PROFILE_INPUT_POSITION) == 0) {
+                        im->dest = vertex;
+                        im->size = 3;  
+                    }
+
+
+                    else if (strcmp(ia[l]->getSemantic(),COMMON_PROFILE_INPUT_TEXCOORD) == 0) {
+                        im->dest = texcoord;
+                        im->size = 2;
+                    }
+                    
+                    domSource* src = dynamic_cast<domSource*>(ia[l]->getSource().getElement().cast());
+                    im->src = src->getFloat_array()->getValue();
+                    
+                    if (src->getTechnique_common() == NULL) {
+                        im->stride = 1;
+                        im->size = 0;
+                        logger.warning << "Found source without accessor!" << logger.end;
+                    } else {
+                        im->stride = src->getTechnique_common()->getAccessor()->getStride();
+                    }
+                    
+                    offsetMap[offset].push_back(im);
+                }
+                continue;
+            }
+            im = new InputMap();
+            im->dest = NULL;
+            if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_NORMAL) == 0) {
+                im->dest = normal;
+                im->size = 3;
+            }
+            else if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_TEXCOORD) == 0) {
+                im->dest = texcoord;
+                im->size = 2;
+            }
+            
+                
+            domSource* src = dynamic_cast<domSource*>(domInput->getSource().getElement().cast());
+            im->src = src->getFloat_array()->getValue();
+
+            if (src->getTechnique_common() == NULL) {
+                // TODO: find out what the default action is when no accessor is found
+                im->stride = 1; 
+                im->size = 0;
+                logger.warning << "Found source without accessor!" << logger.end;
+            } else {
+                im->stride = src->getTechnique_common()->getAccessor()->getStride();
+            }
                 
             offsetMap[offset].push_back(im);
         }
@@ -158,17 +249,19 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
         int currentFace  = 0;
         Vector<3,float> vertices[3];
         Vector<3,float> normals[3];
+        Vector<2,float> texcoords[3];
             
         while (currentP < pCount) {
-            int p = p_arr[currentP];
-            for (vector<InputMap>::iterator itr = offsetMap[currentOffset].begin();
+            int p = pArr[currentP];
+            
+            for (vector<InputMap*>::iterator itr = offsetMap[currentOffset].begin();
                  itr != offsetMap[currentOffset].end();
                  itr++) {
-                InputMap im = *itr;
-                if (im.dest != NULL) {
+                InputMap* im = *itr;
+                if (im->dest != NULL) {
                     // for each p index we read "size" values beginning from "p*stride"
-                    for (int s = 0; s < im.size; s++) {
-                        im.dest[s] = im.src[p*im.stride+s];
+                    for (int s = 0; s < im->size; s++) {
+                        im->dest[s] = im->src[p*im->stride+s];
                     }
                 }
             }
@@ -179,6 +272,7 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                     
                 vertices[currentVertex] = Vector<3,float>(vertex[0],vertex[1],vertex[2]);
                 normals[currentVertex] = Vector<3,float>(normal[0],normal[1],normal[2]);
+                texcoords[currentVertex] = Vector<2,float>(texcoord[0],texcoord[1]);
                 currentVertex++;
 
                 if (currentVertex > 2) {
@@ -186,17 +280,34 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                     try {
                         FacePtr face = FacePtr(new Face(vertices[0], vertices[1],vertices[2],
                                                         normals[0], normals[1], normals[2]));
+                        face->colr[0] = Vector<4,float>(0.0,1.0,0.0,1.0);
+                        face->colr[1] = Vector<4,float>(0.0,1.0,0.0,1.0);
+                        face->colr[2] = Vector<4,float>(0.0,1.0,0.0,1.0);
+                        face->texc[0] = texcoords[0];
+                        face->texc[1] = texcoords[1];
+                        
+                        face->texr = m->texture;
                         faces->Add(face);
                     }
-                    catch (ArithmeticException e) {
-                        logger.warning << "Face caused an arithmetic exception" << logger.end;
+                    catch (Exception e) {
+                        logger.warning << "Face caused an exception: " << e.what() << logger.end;
                     } 
                     currentFace++;
                 }
             }
             currentP++;
         }
+        
+        // delete all the input maps
+        for (int i = 0; i < inputCount; i++) {
+            for (vector<InputMap*>::iterator itr = offsetMap[i].begin();
+                 itr != offsetMap[i].end();
+                 itr++) {
+                delete *itr;
+            }
+        }
         delete[] offsetMap;
+        delete m;
     }
     
     return new GeometryNode(faces);
@@ -214,7 +325,7 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
 void ColladaResource::Load() {
     
     // check if we have loaded the resource
-    if (node != NULL) return;
+    if (root != NULL) return;
   
 
     //initialize the collada database
@@ -226,7 +337,6 @@ void ColladaResource::Load() {
         return;
     }
   
-    node = new SceneNode();
 
     // find the <scene> element 
     // at most one element can exist 
@@ -247,51 +357,128 @@ void ColladaResource::Load() {
         logger.warning << "Error retrieving scene element" << logger.end;
         return;
     }
-    
+   
     
     // find the <instance_visual_scene> element
     // at most one element can exist
     if (scene->getInstance_visual_scene() == NULL) {
-        logger.info << "No visual scene instance defined" << logger.end;
+        logger.warning << "No visual scene instance defined" << logger.end;
         return;
     }
 
+    root = new SceneNode();
 
     // process all <node> elements in the visual scene
-    daeElement* elm = scene->getInstance_visual_scene()->getUrl().getElement();
-    domNode_Array nodeArr = ((domVisual_scene*)elm)->getNode_array();
+    domNode_Array nodeArr = dynamic_cast<domVisual_scene*>(scene->getInstance_visual_scene()->getUrl().
+                                                           getElement().cast())->getNode_array();
 
+    // recursively process each node element
     for (unsigned int n = 0; n < nodeArr.getCount(); n++) {
         domNode* dNode = nodeArr[n];
+        ProcessDOMNode(dNode, root);
+    }
+}
 
-        Quaternion<float> q;
-        TransformationNode* tnode = new TransformationNode();
-        node->AddNode(tnode);
-        
-        //process <rotate> tags NOT FINISHED!!!
-        domRotate_Array rotateArr = dNode->getRotate_array();
-        for (unsigned int r = 0; r < rotateArr.getCount(); r++) {
-            domFloat4 rotation = rotateArr[r]->getValue();
-            //tnode->Rotate(rot)
-        } 
-        
-        // TODO: process transformation info and create a transformation node
+// Helper method to recursively process a domNode in order 
+// to fill out the scene graph with transformation and geometry nodes.
+void ColladaResource::ProcessDOMNode(domNode* dNode, ISceneNode* sNode) {
+    ISceneNode* currNode = sNode;
 
-        // process each <instance_geometry> element
-        domInstance_geometry_Array geomArr = dNode->getInstance_geometry_array();
-        for (unsigned int g = 0; g < geomArr.getCount(); g++) {
-            elm = geomArr[g]->getUrl().getElement();
-            tnode->AddNode(LoadGeometry((domGeometry*)elm));
+    daeTArray<daeSmartRef<daeElement> > elms;
+    dNode->getChildren(elms);
+
+    //process transformation info
+    //TODO: tidy up a bit and ensure that the transformation nodes are correct!
+    for (unsigned int i = 0; i < elms.getCount(); i++) {
+        if (elms[i]->getElementType() == COLLADA_TYPE::LOOKAT) {
+            logger.warning << "ColladaResource: Look At transformation not supported." 
+                           << logger.end;
+            continue;
+        }
+        
+        if (elms[i]->getElementType() == COLLADA_TYPE::MATRIX) {
+            TransformationNode* t = new TransformationNode();
+            domFloat4x4 m = dynamic_cast<domMatrix*>(elms[i].cast())->getValue();
+            t->SetRotation(Quaternion<float>(Matrix<3,3,float>(m[0],m[1],m[2],
+                                                               m[4],m[5],m[6],
+                                                               m[8],m[9],m[10])));
+            
+            t->SetPosition(Vector<3,float>(m[3],m[7],m[11]));
+            
+            t->SetScale(Matrix<4,4,float>(1,0,0,0,
+                                          0,1,0,0,
+                                          0,0,1,0,
+                                          m[12],m[13],m[14],1));
+            currNode->AddNode(t);
+            currNode = t;
+            //logger.info << "found matrix" << logger.end;
+            continue;
+        }
+        
+        if (elms[i]->getElementType() == COLLADA_TYPE::ROTATE) {
+            domFloat4 rotation = dynamic_cast<domRotate*>(elms[i].cast())->getValue();
+            Quaternion<float> q(rotation[3], Vector<3,float>(rotation[0],
+                                                             rotation[1],
+                                                             rotation[2]));
+            TransformationNode* t = new TransformationNode();
+            t->SetRotation(q);
+            currNode->AddNode(t);
+            currNode = t;
+            //logger.info << "found rotate" << logger.end;
+            continue;
+        }
+        
+        if (elms[i]->getElementType() == COLLADA_TYPE::SCALE) {
+            domFloat3 scale = dynamic_cast<domScale*>(elms[i].cast())->getValue();
+            
+            TransformationNode* t = new TransformationNode();
+            t->SetScale(Matrix<4,4,float>(1,0,0,0,
+                                          0,1,0,0,
+                                          0,0,1,0,
+                                          scale[0], scale[1],scale[2],1));
+            currNode->AddNode(t);
+            currNode = t;
+            //logger.info << "found scale" << logger.end;
+            continue;
+        }
+        
+        if (elms[i]->getElementType() == COLLADA_TYPE::SKEW) {
+            logger.warning << "ColladaResource: Skew transformation not supported"
+                           << logger.end;
+            
+            continue;
+        }
+        
+        if (elms[i]->getElementType() == COLLADA_TYPE::TRANSLATE) {
+            domFloat3 trans = dynamic_cast<domTranslate*>(elms[i].cast())->getValue();
+            
+            TransformationNode* t = new TransformationNode();
+            t->Move(trans[0], trans[1], trans[2]);
+            currNode->AddNode(t);
+            currNode = t;
+            //logger.info << "found translate" << logger.end;
         }
     }
+    
+    // process each <instance_geometry> element
+    domInstance_geometry_Array geomArr = dNode->getInstance_geometry_array();
+    for (unsigned int g = 0; g < geomArr.getCount(); g++) {
+        currNode->AddNode(LoadGeometry(dynamic_cast<domGeometry*>(geomArr[g]->getUrl().getElement().cast())));
+    }
+
+    domInstance_node_Array nodeArr = dNode->getInstance_node_array();
+    for (unsigned int n = 0; n < nodeArr.getCount(); n++) {
+        ProcessDOMNode(dynamic_cast<domNode*>(nodeArr[n]->getUrl().getElement().cast()), currNode);
+    }
+
 }
 
 /**
  * Unload the resource.
- * Resets the face collection. Does not delete the face set.
+ * Resets the root node. Does not delete the scene graph.
  */
 void ColladaResource::Unload() {
-    node = NULL;
+    root = NULL;
     if (dae != NULL) {
         delete dae;
         dae = NULL;
@@ -305,7 +492,7 @@ void ColladaResource::Unload() {
  * @return Root node of the scene graph
  */
 ISceneNode* ColladaResource::GetSceneNode() {
-    return node;
+    return root;
 }
 
 } // NS Resources

@@ -23,6 +23,7 @@
 #include <dae.h>
 #include <dom/domCOLLADA.h> // include the most common dom nodes
 #include <dom/domConstants.h>
+#include <dom/domCommon_color_or_texture_type.h>
 
 namespace OpenEngine {
     //forward declarations
@@ -45,10 +46,10 @@ class ColladaResource : public IModelResource {
 private:
     
     struct InputMap{
-        int size; // the number of floats to write(assume that all data arrays are of type float)
-        int stride; // the p index must be multiplied with this number
-        float* dest; // a pointer to a float array where the data has to be written
-        domListOfFloats src; // the source element
+        int size;            //!< the number of floats to write(assume that all data arrays are of type float)
+        int stride;          //!< the p index must be multiplied with this number
+        float* dest;         //!< a pointer to a float array where the data has to be written
+        domListOfFloats src; //!< the source element
     };
 
     // inner material structure
@@ -61,17 +62,17 @@ private:
     };
 
     string file;                      //!< collada file path
-    //    FaceSet* faces;                   //!< the face set
-    ISceneNode* node;                 //!< the root node
-
+    ISceneNode* root;                 //!< the root node
     map<string, Material*> materials; //!< resources material map
 
     // Collada DOM pointers
     DAE *dae;
 
     // helper methods
-    void Error(int line, string msg);
     GeometryNode* LoadGeometry(domGeometry* geom);
+    void ProcessDOMNode(domNode* dNode, ISceneNode* sNode);
+    Material* LoadMaterial(domMaterial* material);
+    void LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m);
 
 public:
     ColladaResource(string file);
