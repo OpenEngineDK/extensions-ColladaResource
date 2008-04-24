@@ -51,6 +51,9 @@ private:
         float* dest;         //!< a pointer to a float array where the data has to be written
         domListOfFloats src; //!< the source element
     };
+    
+    float vertex[3], normal[3], texcoord[2]; //!< buffers for the vertex data
+    vector<InputMap*>* offsetMap;
 
     // inner material structure
     class Material {
@@ -73,6 +76,8 @@ private:
     void ProcessDOMNode(domNode* dNode, ISceneNode* sNode);
     Material* LoadMaterial(domMaterial* material);
     void LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m);
+    void ProcessInputLocalOffset(domInputLocalOffset* input);
+    void InsertInputMap(daeString semantic, domSource* src, int offset);
 
 public:
     ColladaResource(string file);

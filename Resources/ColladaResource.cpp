@@ -69,7 +69,7 @@ ColladaResource::~ColladaResource() {
 void ColladaResource::LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m) {
     daeElement* elm = daeSIDResolver(tex,tex->getTexture()).getElement();
     if (elm == NULL) {
-        logger.warning << "Invalid texture reference" << logger.end;
+        logger.warning << "Invalid texture reference: " << tex->getTexture() << ". No texture Loaded." << logger.end;
         return;
     }
      
@@ -97,6 +97,10 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
             domProfile_COMMON* profile_common = dynamic_cast<domProfile_COMMON*>(profileArr[p].cast());
             domProfile_COMMON::domTechnique* technique = profile_common->getTechnique();
 
+            // ignore fixed function shader type and simply load texture from 
+            // the diffuse channel.
+            
+
             // see if the fixed function shader technique is phong
             domProfile_COMMON::domTechnique::domPhong* phong = technique->getPhong();
             if (phong != NULL) {
@@ -114,10 +118,17 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
                 }
                 return res;
             }
+                        
+            // see if the fixed function shader technique is blinn
+            domProfile_COMMON::domTechnique::domBlinn* blinn = technique->getBlinn();
+            if (blinn != NULL) {
+                if (blinn->getDiffuse().cast() != NULL) {
+                    LoadTexture(blinn->getDiffuse()->getTexture(), res);
+                }
+                return res;
+            }
         }
     }
-
-    
     return res;
 }
 
@@ -127,10 +138,24 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
 */
 GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
 
-    float vertex[3], normal[3], texcoord[2];
     FaceSet* faces = new FaceSet();
     domMesh* mesh = geom->getMesh();
     
+    // Display warnings if unsupported geometry types are defined
+    if (mesh->getLines_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Lines" << logger.end;
+    if (mesh->getLinestrips_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Linestrips" << logger.end;
+    if (mesh->getPolygons_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Polygons" << logger.end;
+    if (mesh->getPolylist_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Polylist" << logger.end;
+    if (mesh->getTrifans_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Trifans" << logger.end;
+    if (mesh->getTristrips_array().getCount() > 0)
+        logger.warning << "Unsupported geometry types found: Tristrips" << logger.end;
+
+
     // Retrieve an array of domTriangles nodes contained in the mesh 
     domTriangles_Array trianglesArr = mesh->getTriangles_array();
     
@@ -163,85 +188,18 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
         // A map indicating where the retrieved vertex data should be copied to
         // depending on the input offset (we assume that the highest possible
         // offset is the number of input elements).
-        vector<InputMap*>* offsetMap = new vector<InputMap*>[inputCount];
+        offsetMap = new vector<InputMap*>[inputCount];
             
         // fill out the offsetMap and find the max offset number            
         int maxOffset = 0;
         for (int input = 0; input < inputCount; input++) {
-            InputMap* im;
-            
-            domInputLocalOffset* domInput = inputArr[input];
-            int offset = domInput->getOffset();
+            int offset = inputArr[input]->getOffset();
             if (offset > maxOffset)
                 maxOffset = offset;
-                
-            // special case if the semantic is INPUT_VERTEX
-            // TODO: eliminate code redundancy!
-            if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_VERTEX) == 0) {
-                domVertices* v = dynamic_cast<domVertices*>(domInput->getSource().getElement().cast());
-                domInputLocal_Array ia = v->getInput_array();
-                
-                for (unsigned int l = 0; l < ia.getCount(); l++) {
-                    im = new InputMap();
-                    im->dest = NULL;
-                    if (strcmp(ia[l]->getSemantic(),COMMON_PROFILE_INPUT_NORMAL) == 0) {
-                        im->dest = normal;
-                        im->size = 3;
-                    }
 
-                    else if (strcmp(ia[l]->getSemantic(), COMMON_PROFILE_INPUT_POSITION) == 0) {
-                        im->dest = vertex;
-                        im->size = 3;  
-                    }
-
-
-                    else if (strcmp(ia[l]->getSemantic(),COMMON_PROFILE_INPUT_TEXCOORD) == 0) {
-                        im->dest = texcoord;
-                        im->size = 2;
-                    }
-                    
-                    domSource* src = dynamic_cast<domSource*>(ia[l]->getSource().getElement().cast());
-                    im->src = src->getFloat_array()->getValue();
-                    
-                    if (src->getTechnique_common() == NULL) {
-                        im->stride = 1;
-                        im->size = 0;
-                        logger.warning << "Found source without accessor!" << logger.end;
-                    } else {
-                        im->stride = src->getTechnique_common()->getAccessor()->getStride();
-                    }
-                    
-                    offsetMap[offset].push_back(im);
-                }
-                continue;
-            }
-            im = new InputMap();
-            im->dest = NULL;
-            if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_NORMAL) == 0) {
-                im->dest = normal;
-                im->size = 3;
-            }
-            else if (strcmp(domInput->getSemantic(),COMMON_PROFILE_INPUT_TEXCOORD) == 0) {
-                im->dest = texcoord;
-                im->size = 2;
-            }
-            
-                
-            domSource* src = dynamic_cast<domSource*>(domInput->getSource().getElement().cast());
-            im->src = src->getFloat_array()->getValue();
-
-            if (src->getTechnique_common() == NULL) {
-                // TODO: find out what the default action is when no accessor is found
-                im->stride = 1; 
-                im->size = 0;
-                logger.warning << "Found source without accessor!" << logger.end;
-            } else {
-                im->stride = src->getTechnique_common()->getAccessor()->getStride();
-            }
-                
-            offsetMap[offset].push_back(im);
+            ProcessInputLocalOffset(inputArr[input].cast());
         }
-
+                
         // Start iterating through each p-index
         int currentP = 0;
         int currentVertex = 0;
@@ -285,7 +243,8 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                         face->colr[2] = Vector<4,float>(0.0,1.0,0.0,1.0);
                         face->texc[0] = texcoords[0];
                         face->texc[1] = texcoords[1];
-                        
+                        face->texc[2] = texcoords[2];
+
                         face->texr = m->texture;
                         faces->Add(face);
                     }
@@ -311,6 +270,77 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
     }
     
     return new GeometryNode(faces);
+}
+
+/**
+* Helper function to create and insert an InputMap.
+* This has the side effect of inserting an inputMap into
+* the offsetMap array field on the index corresponding to offset.
+* Make sure that the size of the array is at least as large as the offset value.
+*/
+void ColladaResource::InsertInputMap(daeString semantic, domSource* src, int offset) {
+    InputMap* im = new InputMap();
+    im->dest = NULL;
+ 
+    if (strcmp(semantic, COMMON_PROFILE_INPUT_POSITION) == 0) {
+        im->dest = vertex;
+        im->size = 3;
+    }
+    
+    else if (strcmp(semantic,COMMON_PROFILE_INPUT_NORMAL) == 0) {
+        im->dest = normal;
+        im->size = 3;
+    }
+    
+    else if (strcmp(semantic,COMMON_PROFILE_INPUT_TEXCOORD) == 0) {
+        im->dest = texcoord;
+        im->size = 2;
+    }
+    else {
+        logger.warning << "Ignoring unsupported input type: " << semantic << logger.end;
+        delete im;
+        return;
+    }
+        
+    im->src = src->getFloat_array()->getValue(); // assume that all source elements contain float arrays
+
+    if (src->getTechnique_common() == NULL) {
+        // TODO: find out what the default action is when no accessor is found
+        im->stride = 1; 
+        im->size = 0;
+        logger.warning << "Found source without accessor." << logger.end;
+    } else {
+        im->stride = src->getTechnique_common()->getAccessor()->getStride();
+    }
+    
+    offsetMap[offset].push_back(im);
+}
+
+/**
+* Helper function to process an input local offset element.
+* Main functionality is to handle the case where the semantic
+* of the input element is VERTEX which will yield a new subtree
+* of input elements.
+*/
+void ColladaResource::ProcessInputLocalOffset(domInputLocalOffset* input) {
+    
+    // special case if the semantic is INPUT_VERTEX
+    if (strcmp(input->getSemantic(),COMMON_PROFILE_INPUT_VERTEX) == 0) {
+        domVertices* v = dynamic_cast<domVertices*>(input->getSource().getElement().cast());
+        domInputLocal_Array inputArr = v->getInput_array();
+        
+        for (unsigned int i = 0; i < inputArr.getCount(); i++) {
+            InsertInputMap(inputArr[i]->getSemantic(), 
+                           dynamic_cast<domSource*>(inputArr[i]->getSource().getElement().cast()), 
+                           input->getOffset());
+        }
+        return;
+    }
+    
+    InsertInputMap(input->getSemantic(), 
+                   dynamic_cast<domSource*>(input->getSource().getElement().cast()),
+                   input->getOffset());
+
 }
 
 /**
