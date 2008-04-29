@@ -52,7 +52,7 @@ private:
         domListOfFloats src; //!< the source element
     };
     
-    float vertex[3], normal[3], texcoord[2]; //!< buffers for the vertex data
+    float vertex[3], normal[3], texcoord[2], color[3]; //!< buffers for the vertex data
     vector<InputMap*>* offsetMap;
 
     // inner material structure
@@ -75,7 +75,7 @@ private:
     GeometryNode* LoadGeometry(domGeometry* geom);
     void ProcessDOMNode(domNode* dNode, ISceneNode* sNode);
     Material* LoadMaterial(domMaterial* material);
-    void LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m);
+    void LoadTexture(domProfile_COMMON* effect, domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m);
     void ProcessInputLocalOffset(domInputLocalOffset* input);
     void InsertInputMap(daeString semantic, domSource* src, int offset);
 

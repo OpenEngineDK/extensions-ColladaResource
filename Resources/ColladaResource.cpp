@@ -66,19 +66,57 @@ ColladaResource::~ColladaResource() {
 /**
  * Helper function to load a domTexture into a Material structure.
  */
-void ColladaResource::LoadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m) {
-    daeElement* elm = daeSIDResolver(tex,tex->getTexture()).getElement();
+void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m) {
+    
+    // TODO: this is pretty hacked up ugly code ... MAKE NICER!
+
+    daeElement* elm = daeSIDResolver(profileCommon,(string(tex->getTexture())).data()).getElement();
     if (elm == NULL) {
-        logger.warning << "Invalid texture reference: " << tex->getTexture() << ". No texture Loaded." << logger.end;
-        return;
+        elm = daeSIDResolver(profileCommon,("./"+string(tex->getTexture())).data()).getElement();
+        if (elm == NULL) {
+            logger.warning << "Invalid texture reference: " << tex->getTexture() << ". No texture Loaded." << logger.end;
+            return;
+        }
     }
-     
+    
+    string resource_dir = File::Parent(this->file);
+
+    // we reset the resource path temporary to create the texture resource
+	if (! DirectoryManager::IsInPath(resource_dir)) {
+        DirectoryManager::AppendPath(resource_dir);
+    }
+    
     // If the texture reference points to an image node
     if (elm->getElementType() == COLLADA_TYPE::IMAGE) {
         domImage* img = dynamic_cast<domImage*>(elm);
         domImage::domInit_from* initFrom =  img->getInit_from();
         if (initFrom != NULL) {
-            m->texture = ResourceManager<ITextureResource>::Create(string(initFrom->getValue().getFile()));
+            m->texture = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
+        }
+        return;
+    }
+
+    // If the texture points to a common new param node
+    if (elm->getElementType() == COLLADA_TYPE::COMMON_NEWPARAM_TYPE) {
+        domFx_sampler2D_common* sampler = dynamic_cast<domCommon_newparam_type*>(elm)->getSampler2D();
+        if (sampler == NULL)
+            return;
+        daeElement* src = daeSIDResolver(profileCommon,("./"+string(sampler->getSource()->getValue())).data()).getElement();
+        if (src->getElementType() != COLLADA_TYPE::COMMON_NEWPARAM_TYPE)
+            return;
+        domFx_surface_common* surface = dynamic_cast<domCommon_newparam_type*>(src)->getSurface();
+        if (surface == NULL || surface->getType() != FX_SURFACE_TYPE_ENUM_2D)
+            return;
+        if (surface->getInit_from_array().getCount() != 0) {
+            daeElement* init = surface->getInit_from_array()[0]->getValue().getElement();
+            if (init->getElementType() == COLLADA_TYPE::IMAGE) {
+                domImage* img = dynamic_cast<domImage*>(init);
+                domImage::domInit_from* initFrom =  img->getInit_from();
+                if (initFrom != NULL) {
+                    m->texture = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
+                }
+                return;
+            }
         }
     }
 }
@@ -105,7 +143,8 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
             domProfile_COMMON::domTechnique::domPhong* phong = technique->getPhong();
             if (phong != NULL) {
                 if (phong->getDiffuse().cast() != NULL) {
-                    LoadTexture(phong->getDiffuse()->getTexture(), res);
+                    if (phong->getDiffuse()->getTexture() != NULL)
+                        LoadTexture(profile_common,phong->getDiffuse()->getTexture(), res);
                 }
                 return res;
             }
@@ -114,7 +153,8 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
             domProfile_COMMON::domTechnique::domLambert* lambert = technique->getLambert();
             if (lambert != NULL) {
                 if (lambert->getDiffuse().cast() != NULL) {
-                    LoadTexture(lambert->getDiffuse()->getTexture(), res);
+                    if (lambert->getDiffuse()->getTexture() != NULL)
+                        LoadTexture(profile_common,lambert->getDiffuse()->getTexture(), res);
                 }
                 return res;
             }
@@ -123,7 +163,8 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
             domProfile_COMMON::domTechnique::domBlinn* blinn = technique->getBlinn();
             if (blinn != NULL) {
                 if (blinn->getDiffuse().cast() != NULL) {
-                    LoadTexture(blinn->getDiffuse()->getTexture(), res);
+                    if (blinn->getDiffuse()->getTexture() != NULL)
+                        LoadTexture(profile_common,blinn->getDiffuse()->getTexture(), res);
                 }
                 return res;
             }
@@ -208,7 +249,8 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
         Vector<3,float> vertices[3];
         Vector<3,float> normals[3];
         Vector<2,float> texcoords[3];
-            
+        Vector<4,float> colors[3];
+
         while (currentP < pCount) {
             int p = pArr[currentP];
             
@@ -231,6 +273,7 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                 vertices[currentVertex] = Vector<3,float>(vertex[0],vertex[1],vertex[2]);
                 normals[currentVertex] = Vector<3,float>(normal[0],normal[1],normal[2]);
                 texcoords[currentVertex] = Vector<2,float>(texcoord[0],texcoord[1]);
+                colors[currentVertex] = Vector<4,float>(color[0],color[1],color[2],1.0);
                 currentVertex++;
 
                 if (currentVertex > 2) {
@@ -238,13 +281,13 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                     try {
                         FacePtr face = FacePtr(new Face(vertices[0], vertices[1],vertices[2],
                                                         normals[0], normals[1], normals[2]));
-                        face->colr[0] = Vector<4,float>(0.0,1.0,0.0,1.0);
-                        face->colr[1] = Vector<4,float>(0.0,1.0,0.0,1.0);
-                        face->colr[2] = Vector<4,float>(0.0,1.0,0.0,1.0);
+                        face->colr[0] = colors[0];
+                        face->colr[1] = colors[1];
+                        face->colr[2] = colors[2];
                         face->texc[0] = texcoords[0];
                         face->texc[1] = texcoords[1];
                         face->texc[2] = texcoords[2];
-
+                        
                         face->texr = m->texture;
                         faces->Add(face);
                     }
@@ -296,6 +339,10 @@ void ColladaResource::InsertInputMap(daeString semantic, domSource* src, int off
         im->dest = texcoord;
         im->size = 2;
     }
+    else if (strcmp(semantic,COMMON_PROFILE_INPUT_COLOR) == 0) {
+        im->dest = color;
+        im->size = 3;
+    }
     else {
         logger.warning << "Ignoring unsupported input type: " << semantic << logger.end;
         delete im;
@@ -340,7 +387,6 @@ void ColladaResource::ProcessInputLocalOffset(domInputLocalOffset* input) {
     InsertInputMap(input->getSemantic(), 
                    dynamic_cast<domSource*>(input->getSource().getElement().cast()),
                    input->getOffset());
-
 }
 
 /**
