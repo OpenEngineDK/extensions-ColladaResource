@@ -107,8 +107,8 @@ void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_co
         domFx_surface_common* surface = dynamic_cast<domCommon_newparam_type*>(src)->getSurface();
         if (surface == NULL || surface->getType() != FX_SURFACE_TYPE_ENUM_2D)
             return;
-        if (surface->getInit_from_array().getCount() != 0) {
-            daeElement* init = surface->getInit_from_array()[0]->getValue().getElement();
+        if (surface->getFx_surface_init_common()->getInit_from_array().getCount() != 0) {
+            daeElement* init = surface->getFx_surface_init_common()->getInit_from_array()[0]->getValue().getElement();
             if (init->getElementType() == COLLADA_TYPE::IMAGE) {
                 domImage* img = dynamic_cast<domImage*>(init);
                 domImage::domInit_from* initFrom =  img->getInit_from();
