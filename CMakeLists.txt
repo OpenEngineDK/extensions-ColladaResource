@@ -10,4 +10,5 @@ TARGET_LINK_LIBRARIES(Extensions_ColladaResource
   # Extension dependencies
   ${COLLADA_DOM_LIBRARIES}
   ${LIBXML2}
+  ${LIBPCRECPP}
 )
