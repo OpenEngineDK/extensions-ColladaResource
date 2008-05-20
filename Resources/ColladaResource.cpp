@@ -66,17 +66,14 @@ ColladaResource::~ColladaResource() {
 /**
  * Helper function to load a domTexture into a Material structure.
  */
-void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m) {
+void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_color_or_texture_type_complexType::domTexture* tex, MaterialPtr m) {
     
     // TODO: this is pretty hacked up ugly code ... MAKE NICER!
 
     daeElement* elm = daeSIDResolver(profileCommon,(string(tex->getTexture())).data()).getElement();
     if (elm == NULL) {
-        elm = daeSIDResolver(profileCommon,("./"+string(tex->getTexture())).data()).getElement();
-        if (elm == NULL) {
-            logger.warning << "Invalid texture reference: " << tex->getTexture() << ". No texture Loaded." << logger.end;
-            return;
-        }
+        logger.warning << "Invalid texture reference: " << tex->getTexture() << ". No texture Loaded." << logger.end;
+        return;
     }
     
     string resource_dir = File::Parent(this->file);
@@ -91,7 +88,7 @@ void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_co
         domImage* img = dynamic_cast<domImage*>(elm);
         domImage::domInit_from* initFrom =  img->getInit_from();
         if (initFrom != NULL) {
-            m->texture = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
+            m->texr = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
         }
         return;
     }
@@ -101,7 +98,7 @@ void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_co
         domFx_sampler2D_common* sampler = dynamic_cast<domCommon_newparam_type*>(elm)->getSampler2D();
         if (sampler == NULL)
             return;
-        daeElement* src = daeSIDResolver(profileCommon,("./"+string(sampler->getSource()->getValue())).data()).getElement();
+        daeElement* src = daeSIDResolver(profileCommon,sampler->getSource()->getValue()).getElement();
         if (src->getElementType() != COLLADA_TYPE::COMMON_NEWPARAM_TYPE)
             return;
         domFx_surface_common* surface = dynamic_cast<domCommon_newparam_type*>(src)->getSurface();
@@ -113,7 +110,7 @@ void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_co
                 domImage* img = dynamic_cast<domImage*>(init);
                 domImage::domInit_from* initFrom =  img->getInit_from();
                 if (initFrom != NULL) {
-                    m->texture = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
+                    m->texr = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
                 }
                 return;
             }
@@ -121,37 +118,82 @@ void ColladaResource::LoadTexture(domProfile_COMMON* profileCommon, domCommon_co
     }
 }
 
-ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) {
-    Material* res = new Material();
+MaterialPtr ColladaResource::LoadMaterial(domMaterial* material) {
+    // create material with default values
+    MaterialPtr res = MaterialPtr(new Material());
     
     // get the effect element pointed to by instance_effect
     domEffect* e = dynamic_cast<domEffect*>(material->getInstance_effect()->getUrl().getElement().cast());
     domFx_profile_abstract_Array profileArr = e->getFx_profile_abstract_array();
-    
+ 
     for (unsigned int p = 0; p < profileArr.getCount(); p++) {
         // only process the profile_COMMON technique
         if (profileArr[p]->getElementType() == COLLADA_TYPE::PROFILE_COMMON) {
             
-            domProfile_COMMON* profile_common = dynamic_cast<domProfile_COMMON*>(profileArr[p].cast());
-            domProfile_COMMON::domTechnique* technique = profile_common->getTechnique();
+            domProfile_COMMON* profile_common = 
+                dynamic_cast<domProfile_COMMON*>(profileArr[p].cast());
+            domProfile_COMMON::domTechnique* technique = 
+                profile_common->getTechnique();
 
-            // ignore fixed function shader type and simply load texture from 
-            // the diffuse channel.
-            
+            // ignore fixed function shader type 
 
             // see if the fixed function shader technique is phong
             domProfile_COMMON::domTechnique::domPhong* phong = technique->getPhong();
+            domFx_color_common col;
+
             if (phong != NULL) {
-                if (phong->getDiffuse().cast() != NULL) {
+           
+                if (phong->getDiffuse() != NULL) {
+                    //check for texture in diffuse channel
                     if (phong->getDiffuse()->getTexture() != NULL)
                         LoadTexture(profile_common,phong->getDiffuse()->getTexture(), res);
+                
+                    // check for color in diffuse channel
+                    if (phong->getDiffuse()->getColor() != NULL) {
+                        col = phong->getDiffuse()->getColor()->getValue();
+                        res->diffuse = Vector<4,float>(col[0],col[1],col[2],col[3]);
+                    }
                 }
+
+                if (phong->getAmbient() != NULL) {
+                    // check for color in ambient channel
+                    if (phong->getAmbient()->getColor() != NULL) {
+                        col = phong->getAmbient()->getColor()->getValue();
+                        res->ambient = Vector<4,float>(col[0],col[1],col[2],col[3]);
+                    }
+                }
+
+                if (phong->getSpecular() != NULL) {
+                    // check for color in specular channel
+                    if (phong->getSpecular()->getColor() != NULL) {
+                        col = phong->getSpecular()->getColor()->getValue();
+                        res->specular = Vector<4,float>(col[0],col[1],col[2],col[3]);
+                    }
+                }
+
+                if (phong->getEmission() != NULL) {
+                    // check for color in specular channel
+                    if (phong->getEmission()->getColor() != NULL) {
+                        col = phong->getEmission()->getColor()->getValue();
+                        res->emission = Vector<4,float>(col[0],col[1],col[2],col[3]);
+                    }
+                }
+
+                if (phong->getShininess() != NULL) {
+                    if (phong->getShininess()->getFloat() != NULL) {
+                        // check for shininess value
+                        res->shininess =phong->getShininess()->getFloat()->getValue();
+                    }
+                }
+
+                //res-> = MaterialPtr(new Material(amb,diff,spec,emi,shine));
                 return res;
             }
 
             // see if the fixed function shader technique is lambert
             domProfile_COMMON::domTechnique::domLambert* lambert = technique->getLambert();
             if (lambert != NULL) {
+                logger.info << "lambert profile" << logger.end;
                 if (lambert->getDiffuse().cast() != NULL) {
                     if (lambert->getDiffuse()->getTexture() != NULL)
                         LoadTexture(profile_common,lambert->getDiffuse()->getTexture(), res);
@@ -162,6 +204,7 @@ ColladaResource::Material* ColladaResource::LoadMaterial(domMaterial* material) 
             // see if the fixed function shader technique is blinn
             domProfile_COMMON::domTechnique::domBlinn* blinn = technique->getBlinn();
             if (blinn != NULL) {
+                logger.info << "blinn profile" << logger.end;
                 if (blinn->getDiffuse().cast() != NULL) {
                     if (blinn->getDiffuse()->getTexture() != NULL)
                         LoadTexture(profile_common,blinn->getDiffuse()->getTexture(), res);
@@ -205,14 +248,15 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
         domTriangles* triangles = trianglesArr[t]; 
             
         // Get the material associated with the current triangle list
-        Material* m;
+        MaterialPtr m;
         daeElement* elm = daeSIDResolver(triangles,triangles->getMaterial()).getElement();
         if (elm != NULL) {
             m = LoadMaterial(dynamic_cast<domMaterial*>(elm));
         }
         else {
             // the default material
-            m = new Material();
+            logger.warning << "No material found. Fall back to default material." << logger.end;
+            m = MaterialPtr(new Material());
         }
 
         // Retrieve the primitive(P) list, which is a list of indices into 
@@ -288,7 +332,7 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
                         face->texc[1] = texcoords[1];
                         face->texc[2] = texcoords[2];
                         
-                        face->texr = m->texture;
+                        face->mat = m;
                         faces->Add(face);
                     }
                     catch (Exception e) {
@@ -309,7 +353,6 @@ GeometryNode* ColladaResource::LoadGeometry(domGeometry* geom) {
             }
         }
         delete[] offsetMap;
-        delete m;
     }
     
     return new GeometryNode(faces);
@@ -349,6 +392,11 @@ void ColladaResource::InsertInputMap(daeString semantic, domSource* src, int off
         return;
     }
         
+    
+    if (src->getFloat_array() == NULL) {
+        logger.warning << "No float array present, we only support vertex data in float arrays" << logger.end;
+    }
+
     im->src = src->getFloat_array()->getValue(); // assume that all source elements contain float arrays
 
     if (src->getTechnique_common() == NULL) {
@@ -463,15 +511,17 @@ void ColladaResource::ProcessDOMNode(domNode* dNode, ISceneNode* sNode) {
     daeTArray<daeSmartRef<daeElement> > elms;
     dNode->getChildren(elms);
 
-    //process transformation info
-    //TODO: tidy up a bit and ensure that the transformation nodes are correct!
+    // process transformation info
+    // TODO: tidy up a bit and ensure that the transformation nodes are correct!
     for (unsigned int i = 0; i < elms.getCount(); i++) {
         if (elms[i]->getElementType() == COLLADA_TYPE::LOOKAT) {
             logger.warning << "ColladaResource: Look At transformation not supported." 
                            << logger.end;
             continue;
         }
-        
+
+        // TODO: this matrix is most likely initialized incorrectly.
+        // funny behaviour observed.
         if (elms[i]->getElementType() == COLLADA_TYPE::MATRIX) {
             TransformationNode* t = new TransformationNode();
             domFloat4x4 m = dynamic_cast<domMatrix*>(elms[i].cast())->getValue();
@@ -508,10 +558,11 @@ void ColladaResource::ProcessDOMNode(domNode* dNode, ISceneNode* sNode) {
             domFloat3 scale = dynamic_cast<domScale*>(elms[i].cast())->getValue();
             
             TransformationNode* t = new TransformationNode();
-            t->SetScale(Matrix<4,4,float>(1,0,0,0,
-                                          0,1,0,0,
-                                          0,0,1,0,
-                                          scale[0], scale[1],scale[2],1));
+            t->Scale(scale[0],scale[1],scale[2]);
+//             t->SetScale(Matrix<4,4,float>(1,0,0,0,
+//                                           0,1,0,0,
+//                                           0,0,1,0,
+//                                           scale[0], scale[1],scale[2],1));
             currNode->AddNode(t);
             currNode = t;
             //logger.info << "found scale" << logger.end;

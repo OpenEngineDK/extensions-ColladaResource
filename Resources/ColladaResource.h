@@ -15,6 +15,7 @@
 #include <Resources/ResourcePlugin.h>
 #include <Resources/ITextureResource.h>
 #include <Resources/IShaderResource.h>
+#include <Geometry/Material.h>
 
 #include <string>
 #include <vector>
@@ -35,6 +36,7 @@ namespace OpenEngine {
 namespace Resources {
 
 using namespace OpenEngine::Scene;
+using namespace OpenEngine::Geometry;
 using namespace std;
 
 /**
@@ -56,17 +58,17 @@ private:
     vector<InputMap*>* offsetMap;
 
     // inner material structure
-    class Material {
-    public:
-        ITextureResourcePtr texture; //!< texture resource 
-        IShaderResourcePtr shader;   //!< shader resource 
-        Material() {}
-        ~Material() {}
-    };
+//     class Material {
+//     public:
+//         ITextureResourcePtr texture; //!< texture resource
+//         IShaderResourcePtr shader;   //!< shader resource
+//         Material() {}
+//         ~Material() {}
+//     };
 
     string file;                      //!< collada file path
     ISceneNode* root;                 //!< the root node
-    map<string, Material*> materials; //!< resources material map
+    //    map<string, Material*> materials; //!< resources material map
 
     // Collada DOM pointers
     DAE *dae;
@@ -74,8 +76,8 @@ private:
     // helper methods
     GeometryNode* LoadGeometry(domGeometry* geom);
     void ProcessDOMNode(domNode* dNode, ISceneNode* sNode);
-    Material* LoadMaterial(domMaterial* material);
-    void LoadTexture(domProfile_COMMON* effect, domCommon_color_or_texture_type_complexType::domTexture* tex, Material* m);
+    MaterialPtr LoadMaterial(domMaterial* material);
+    void LoadTexture(domProfile_COMMON* effect, domCommon_color_or_texture_type_complexType::domTexture* tex, MaterialPtr m);
     void ProcessInputLocalOffset(domInputLocalOffset* input);
     void InsertInputMap(daeString semantic, domSource* src, int offset);
 
