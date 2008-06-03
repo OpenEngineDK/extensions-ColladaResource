@@ -1,6 +1,8 @@
 INCLUDE(${OE_CURRENT_EXTENSION_DIR}/FindColladaDOM.cmake)
-INCLUDE(${OE_CURRENT_EXTENSION_DIR}/FindXML2.cmake)
-INCLUDE(${OE_CURRENT_EXTENSION_DIR}/FindPcrecpp.cmake)
+
+IF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
+  set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} WS2_32.lib")
+ENDIF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
 
 IF (COLLADA_DOM_FOUND) 
   INCLUDE_DIRECTORIES(${COLLADA_DOM_INCLUDE_DIR})
@@ -8,12 +10,3 @@ ELSE (COLLADA_DOM_FOUND)
   MESSAGE ("WARNING: Could not find Collada DOM  - depending targets will be disabled.")
 ENDIF (COLLADA_DOM_FOUND)
 
-IF (LIBXML2_FOUND)
-ELSE(LIBXML2_FOUND)
-  MESSAGE ("WARNING: Could not find xml2 - depending targets will be disabled.")
-ENDIF (LIBXML2_FOUND)
-
-IF (LIBPCRECPP_FOUND)
-ELSE(LIBPCRECPP_FOUND)
-  MESSAGE ("WARNING: Could not find pcrecpp - depending targets will be disabled.")
-ENDIF (LIBPCRECPP_FOUND)

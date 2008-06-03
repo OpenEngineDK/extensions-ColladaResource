@@ -6,6 +6,16 @@
 #  COLLADA_DOM_LIBRARIES - Link these to use Collada DOM
 #
 
+SET(COLLADADOMLIB "libcollada14dom21-sd")
+IF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
+  STRING(COMPARE EQUAL ${CMAKE_BUILD_TYPE} "debug" ISDEBUGENABLED)
+  IF(ISDEBUGENABLED)
+    SET(COLLADADOMLIB "libcollada14dom21-sd")
+  ELSE(ISDEBUGENABLED)
+    SET(COLLADADOMLIB "libcollada14dom21-s")
+  ENDIF(ISDEBUGENABLED)
+ENDIF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
+
 FIND_PATH(COLLADA_DOM_INCLUDE_DIR NAMES dae.h dom.h
   PATHS
   ${PROJECT_BINARY_DIR}/include
@@ -27,9 +37,10 @@ ELSE(${COLLADA_DOM_INCLUDE_DIR} MATCHES ".framework")
  
 FIND_LIBRARY(COLLADA_DOM_LIB
   NAMES 
-  collada14dom-d  
+  ${COLLADADOMLIB}
   PATHS
   ${PROJECT_SOURCE_DIR}/libraries/colladadom2.1/lib/linux-1.4-d
+  ${PROJECT_SOURCE_DIR}/libraries/colladadom2.1/lib
   ENV LD_LIBRARY_PATH
   ENV LIBRARY_PATH
   /usr/lib
