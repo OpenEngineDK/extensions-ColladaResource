@@ -16,21 +16,28 @@
 #include <Resources/ITextureResource.h>
 #include <Resources/IShaderResource.h>
 #include <Geometry/Material.h>
+#include <Math/Quaternion.h>
 
 #include <string>
 #include <vector>
+#include <map>
 
 // Collada dom classes
 #include <dae.h>
 #include <dom/domCOLLADA.h> // include the most common dom nodes
 #include <dom/domConstants.h>
 #include <dom/domCommon_color_or_texture_type.h>
+#include <dom/domProfile_COMMON.h>
 
 namespace OpenEngine {
     //forward declarations
     namespace Scene { 
         class ISceneNode; 
         class GeometryNode; 
+        class TransformationNode;
+    }
+    namespace Geometry {
+        class FaceSet;
     }
 
 namespace Resources {
@@ -54,30 +61,49 @@ private:
         domListOfFloats src; //!< the source element
     };
     
+    // data caches
+    map<string, MaterialPtr> materials;
+    map<string,domCommon_newparam_type*> params;
+    
+    Quaternion<float> rot;
+    bool yUp;
+
     float vertex[3], normal[3], texcoord[2], color[3]; //!< buffers for the vertex data
     vector<InputMap*>* offsetMap;
 
-    // inner material structure
-//     class Material {
-//     public:
-//         ITextureResourcePtr texture; //!< texture resource
-//         IShaderResourcePtr shader;   //!< shader resource
-//         Material() {}
-//         ~Material() {}
-//     };
-
     string file;                      //!< collada file path
-    ISceneNode* root;                 //!< the root node
+    TransformationNode* root;                 //!< the root node
     //    map<string, Material*> materials; //!< resources material map
 
     // Collada DOM pointers
     DAE *dae;
 
     // helper methods
-    GeometryNode* LoadGeometry(domGeometry* geom);
-    void ProcessDOMNode(domNode* dNode, ISceneNode* sNode);
-    MaterialPtr LoadMaterial(domMaterial* material);
-    void LoadTexture(domProfile_COMMON* effect, domCommon_color_or_texture_type_complexType::domTexture* tex, MaterialPtr m);
+    GeometryNode* LoadGeometry(domInstance_geometry* geom);
+    MaterialPtr LoadMaterial(domMaterial* dm);
+
+    void ReadImage(domImage* img, MaterialPtr m);
+    void ReadNode(domNode* dNode, ISceneNode* sNode);
+    void ReadEffect(domInstance_effect* eInst, MaterialPtr m);
+    void ReadTriangles(domTriangles* ts, FaceSet* fs);
+    void ReadColor(domCommon_color_or_texture_type_complexType* ct,
+                              Vector<4,float>* dest);
+    
+    void ReadPhong(domProfile_COMMON::domTechnique::domPhong* phong,
+                   MaterialPtr m);
+
+    void ReadLambert(domProfile_COMMON::domTechnique::domLambert* lambert,
+                   MaterialPtr m);
+
+    void ReadBlinn(domProfile_COMMON::domTechnique::domBlinn* blinn,
+                   MaterialPtr m);
+
+    void ReadConstant(domProfile_COMMON::domTechnique::domConstant* constant,
+                   MaterialPtr m);
+
+
+    void ReadTexture(domCommon_color_or_texture_type_complexType::domTexture* tex, 
+                     MaterialPtr m);
     void ProcessInputLocalOffset(domInputLocalOffset* input);
     void InsertInputMap(daeString semantic, domSource* src, int offset);
 
