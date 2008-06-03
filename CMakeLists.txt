@@ -95,7 +95,7 @@ IF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
     MESSAGE ("WARNING: Could not find zlib - depending targets will be disabled.")
   ENDIF(NOT LIBZLIB)
   
-  SET(COLLADA_DOM_LIBRARIES "${COLLADA_DOM_LIBRARIES} ${LIBZLIB}")
+  SET(COLLADA_DOM_LIBRARIES ${COLLADA_DOM_LIBRARIES} ${LIBZLIB})
 ENDIF(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
 
 
