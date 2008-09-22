@@ -22,6 +22,7 @@ FIND_LIBRARY(LIBPCRE
   ${PROJECT_SOURCE_DIR}/lib
   ${PROJECT_SOURCE_DIR}/libraries
   ${PROJECT_SOURCE_DIR}/libraries/colladadom2.1/lib
+  ${OE_LIB_DIR}/pcre/lib
   ENV LD_LIBRARY_PATH
   ENV LIBRARY_PATH
   /usr/lib
@@ -42,6 +43,7 @@ FIND_LIBRARY(LIBPCRECPP
   ${PROJECT_SOURCE_DIR}/lib
   ${PROJECT_SOURCE_DIR}/libraries
   ${PROJECT_SOURCE_DIR}/libraries/colladadom2.1/lib
+  ${OE_LIB_DIR}/pcrecpp/lib
   ENV LD_LIBRARY_PATH
   ENV LIBRARY_PATH
   /usr/lib
