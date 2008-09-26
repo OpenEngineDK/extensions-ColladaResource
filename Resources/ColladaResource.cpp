@@ -516,18 +516,12 @@ void ColladaResource::Load() {
     dae = new DAE();
 
     int err = dae->load(file.data());
-    if (err != DAE_OK) {
-        logger.warning << "Error opening Collada file: " << file << logger.end;
-        return;
-    }
+    if (err != DAE_OK)
+        throw Exception("Error opening Collada file: " + file);
   
-
-    // find the <scene> element 
-    // at most one element can exist 
-    if (dae->getDatabase()->getElementCount(NULL,COLLADA_ELEMENT_SCENE,NULL) == 0) {
-        logger.info << "No scene element defined in collada file" << logger.end;
-        return;
-    }
+    // find the <scene> element, at most one element can exist
+    if (dae->getDatabase()->getElementCount(NULL,COLLADA_ELEMENT_SCENE,NULL) == 0)
+        throw Exception("No scene element defined in collada file");
     
     domCOLLADA::domScene* scene;
     
@@ -537,25 +531,17 @@ void ColladaResource::Load() {
                                          COLLADA_ELEMENT_SCENE, 
                                          NULL);
     
-    if (err != DAE_OK) {
-        logger.warning << "Error retrieving scene element." << logger.end;
-        return;
-    }
-   
+    if (err != DAE_OK)
+        throw Exception("Error retrieving scene element.");
     
     // find the <instance_visual_scene> element
     // at most one element can exist
-    if (scene->getInstance_visual_scene() == NULL) {
-        logger.warning << "No visual scene instance defined." << logger.end;
-        return;
-    }
+    if (scene->getInstance_visual_scene() == NULL)
+        throw Exception("No visual scene instance defined.");
 
     root = new TransformationNode();
 
-
-    // default axis settings.
-    // Y-axis is up!    
-
+    // default axis settings, Y-axis is up!
     yUp = true;
     domCOLLADA* dRoot = dae->getDom(file.data());
     if (dRoot->getAsset()->getUp_axis()->getValue() == UPAXISTYPE_Z_UP) {
