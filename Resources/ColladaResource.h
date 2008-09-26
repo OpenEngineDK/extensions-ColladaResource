@@ -109,7 +109,7 @@ private:
 
 public:
     ColladaResource(string file);
-    ~ColladaResource();
+    virtual ~ColladaResource();
     void Load();
     void Unload();
     ISceneNode* GetSceneNode();
