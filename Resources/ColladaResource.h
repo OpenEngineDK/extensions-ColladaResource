@@ -12,7 +12,7 @@
 #define _COLLADA_RESOURCE_H_
 
 #include <Resources/IModelResource.h>
-#include <Resources/ResourcePlugin.h>
+#include <Resources/IResourcePlugin.h>
 #include <Resources/ITextureResource.h>
 #include <Resources/IShaderResource.h>
 #include <Geometry/Material.h>
@@ -120,7 +120,7 @@ public:
  *
  * @class ColladaPlugin ColladaResource.h "ColladaResource.h"
  */
-class ColladaPlugin : public ResourcePlugin<IModelResource> {
+class ColladaPlugin : public IResourcePlugin<IModelResource> {
 public:
 	ColladaPlugin();
     IModelResourcePtr CreateResource(string file);
