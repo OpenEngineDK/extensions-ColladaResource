@@ -14,7 +14,6 @@
 #include <Resources/IModelResource.h>
 #include <Resources/IResourcePlugin.h>
 #include <Resources/ITextureResource.h>
-#include <Resources/IShaderResource.h>
 #include <Geometry/Material.h>
 #include <Math/Quaternion.h>
 
