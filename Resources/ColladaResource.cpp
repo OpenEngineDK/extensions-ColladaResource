@@ -10,6 +10,7 @@
 
 #include <Resources/ColladaResource.h>
 
+#include <Resources/ITextureResource.h>
 #include <Resources/ResourceManager.h>
 #include <Resources/File.h>
 #include <Logging/Logger.h>
