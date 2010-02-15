@@ -10,7 +10,7 @@
 
 #include <Resources/ColladaResource.h>
 
-#include <Resources/ITextureResource.h>
+#include <Resources/ITexture2D.h>
 #include <Resources/ResourceManager.h>
 #include <Resources/File.h>
 #include <Logging/Logger.h>
@@ -75,7 +75,7 @@ void ColladaResource::ReadImage(domImage* img,
 
     domImage::domInit_from* initFrom = img->getInit_from();
     if (initFrom != NULL) {
-        m->texr = ResourceManager<ITextureResource>::Create(initFrom->getValue().getOriginalURI());
+        m->texr = ResourceManager<ITexture2D>::Create(initFrom->getValue().getOriginalURI());
     }
 }
 
