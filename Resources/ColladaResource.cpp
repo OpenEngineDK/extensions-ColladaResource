@@ -75,7 +75,7 @@ void ColladaResource::ReadImage(domImage* img,
 
     domImage::domInit_from* initFrom = img->getInit_from();
     if (initFrom != NULL) {
-        m->texr = ResourceManager<ITexture2D>::Create(initFrom->getValue().getOriginalURI());
+        m->AddTexture(ResourceManager<ITexture2D>::Create(initFrom->getValue().getOriginalURI()));
     }
 }
 
